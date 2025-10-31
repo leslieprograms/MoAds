@@ -1,6 +1,8 @@
+type Page = 'home' | 'create' | 'campaigns' | 'insights';
+
 interface NavigationProps {
-  currentPage: string;
-  onNavigate: (page: string) => void;
+  currentPage: Page;
+  onNavigate: (page: Page) => void;
 }
 
 export default function Navigation({ currentPage, onNavigate }: NavigationProps) {
@@ -12,7 +14,7 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
             className="flex items-center space-x-2 cursor-pointer"
             onClick={() => onNavigate('home')}
           >
-            <img src="/mofloicon.png" alt="MoAds Logo" className="w-8 h-8" />
+            <img src={new URL('../assets/mofloicon.png', import.meta.url).href} alt="MoAds Logo" className="w-8 h-8" />
             <span className="text-2xl font-bold text-white tracking-tight">MoAds</span>
           </div>
 
