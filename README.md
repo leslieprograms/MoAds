@@ -4,6 +4,8 @@ It provides an easy-to-use interface to enter campaign details and organize ad c
 ## Running the app
 git clone https://github.com/leslieprograms/MoAds.git
 
+npm install
+
 npm install @types/react @types/react-dom --save-dev
 
 npm run dev
