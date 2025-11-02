@@ -221,8 +221,7 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                 <div className="flex items-center text-sm text-gray-400">
                   <Calendar className="w-4 h-4 mr-2 text-[#2663eb]" />
                   <span>
-                    {new Date(campaign.start_date).toLocaleDateString()} -{' '}
-                    {new Date(campaign.end_date).toLocaleDateString()}
+                    {campaign.start_date} - {campaign.end_date}
                   </span>
                 </div>
 
@@ -289,8 +288,7 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                       ${campaign.budget.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-gray-300 text-sm">
-                      {new Date(campaign.start_date).toLocaleDateString()} -{' '}
-                      {new Date(campaign.end_date).toLocaleDateString()}
+                      {campaign.start_date} - {campaign.end_date}
                     </td>
                     <td className="px-6 py-4 text-gray-300 text-sm max-w-xs truncate">
                       {campaign.audience}
