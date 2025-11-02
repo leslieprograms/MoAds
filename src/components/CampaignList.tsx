@@ -78,31 +78,27 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
 
     setIsSubmitting(true);
     try {
+      const updatedData = {
+        campaign_name: editForm.campaign_name!,
+        google_ads_text: editForm.google_ads_text!,
+        meta_ads_caption: editForm.meta_ads_caption!,
+        budget: typeof editForm.budget === 'string' ? parseFloat(editForm.budget) : editForm.budget!,
+        start_date: editForm.start_date!,
+        end_date: editForm.end_date!,
+        audience: editForm.audience!,
+        status: editForm.status!,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from('campaigns')
-        .update({
-          campaign_name: editForm.campaign_name,
-          google_ads_text: editForm.google_ads_text,
-          meta_ads_caption: editForm.meta_ads_caption,
-          budget: editForm.budget,
-          start_date: editForm.start_date,
-          end_date: editForm.end_date,
-          audience: editForm.audience,
-          status: editForm.status,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatedData)
         .eq('id', editingCampaign.id);
 
       if (error) throw error;
 
-      // Update local state
-      setCampaigns((prev) =>
-        prev.map((c) =>
-          c.id === editingCampaign.id
-            ? { ...c, ...editForm, updated_at: new Date().toISOString() }
-            : c
-        )
-      );
+      // Refresh from database to ensure sync
+      await fetchCampaigns();
 
       closeEditModal();
     } catch (error) {

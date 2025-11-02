@@ -11,13 +11,3 @@ cd MoAds
 npm install
 npm run dev
 ```
-
-## Deploying on Vercel
-
-- Build command: `npm run build`
-- Output directory: `dist`
-- Environment variables required (Project Settings → Environment Variables):
-	- `VITE_SUPABASE_URL`
-	- `VITE_SUPABASE_ANON_KEY`
-
-If these aren’t set, the app will still load but Supabase features will be disabled.
