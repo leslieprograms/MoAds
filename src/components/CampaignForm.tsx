@@ -120,7 +120,7 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
               value={formData.campaign_name}
               onChange={handleChange}
               className="w-full bg-white text-gray-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#2663eb] transition-all"
-              placeholder="Summer Sale 2024"
+              placeholder="End of Year Sale 2025"
             />
             {errors.campaign_name && (
               <p className="text-red-400 text-sm mt-1">{errors.campaign_name}</p>
@@ -154,7 +154,7 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
               onChange={handleChange}
               rows={3}
               className="w-full bg-white text-gray-900 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#2663eb] transition-all resize-none"
-              placeholder="🔥 Summer deals are here! Don't miss out on incredible savings. Link in bio! #Sale #Shopping"
+              placeholder="🔥 End of year deals are here! Don't miss out on incredible savings. Link in bio! #Sale #Shopping"
             />
             {errors.meta_ads_caption && (
               <p className="text-red-400 text-sm mt-1">{errors.meta_ads_caption}</p>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Calendar, DollarSign } from 'lucide-react';
+import { Calendar, DollarSign } from 'lucide-react';
 import { supabase, Campaign } from '../lib/supabase';
 
 export default function ActivityFeed() {
