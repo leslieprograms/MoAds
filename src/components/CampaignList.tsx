@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit2, Trash2, Grid, List, Calendar, DollarSign, Users } from 'lucide-react';
+import { Edit2, Trash2, Grid, List, Calendar, DollarSign, Users, X, Save, Upload } from 'lucide-react';
 import { supabase, Campaign } from '../lib/supabase';
 
 interface CampaignListProps {
@@ -11,6 +11,11 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Campaign>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string>('');
 
   useEffect(() => {
     fetchCampaigns();
@@ -43,6 +48,120 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
       setCampaigns((prev) => prev.filter((c) => c.id !== id));
     } catch (error) {
       console.error('Error deleting campaign:', error);
+    }
+  };
+
+  const openEditModal = (campaign: Campaign) => {
+    setEditingCampaign(campaign);
+    setEditForm({
+      campaign_name: campaign.campaign_name,
+      google_ads_text: campaign.google_ads_text,
+      meta_ads_caption: campaign.meta_ads_caption,
+      budget: campaign.budget,
+      start_date: campaign.start_date,
+      end_date: campaign.end_date,
+      audience: campaign.audience,
+      status: campaign.status,
+      image_url: campaign.image_url,
+    });
+    setEditImageFile(null);
+    setEditImagePreview(campaign.image_url || '');
+  };
+
+  const closeEditModal = () => {
+    setEditingCampaign(null);
+    setEditForm({});
+    setEditImageFile(null);
+    setEditImagePreview('');
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeEditImage = () => {
+    setEditImageFile(null);
+    setEditImagePreview('');
+    setEditForm((prev) => ({ ...prev, image_url: '' }));
+  };
+
+  const uploadEditImage = async (): Promise<string | null | undefined> => {
+    if (editImageFile) {
+      try {
+        const fileExt = editImageFile.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('campaign-images')
+          .upload(filePath, editImageFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('campaign-images')
+          .getPublicUrl(filePath);
+
+        return publicUrl;
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        return null;
+      }
+    }
+    // Return undefined if no new image, keep existing
+    return editForm.image_url;
+  };
+
+  const updateCampaign = async () => {
+    if (!editingCampaign) return;
+
+    setIsSubmitting(true);
+    try {
+      // Upload new image if selected
+      const imageUrl = await uploadEditImage();
+
+      const updatedData = {
+        campaign_name: editForm.campaign_name!,
+        google_ads_text: editForm.google_ads_text!,
+        meta_ads_caption: editForm.meta_ads_caption!,
+        budget: typeof editForm.budget === 'string' ? parseFloat(editForm.budget) : editForm.budget!,
+        start_date: editForm.start_date!,
+        end_date: editForm.end_date!,
+        audience: editForm.audience!,
+        status: editForm.status!,
+        image_url: imageUrl,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('campaigns')
+        .update(updatedData)
+        .eq('id', editingCampaign.id);
+
+      if (error) throw error;
+
+      // Refresh from database to ensure sync
+      await fetchCampaigns();
+
+      closeEditModal();
+    } catch (error) {
+      console.error('Error updating campaign:', error);
+      alert('Failed to update campaign. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -135,7 +254,7 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
 
                 <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => alert('Edit functionality coming soon')}
+                    onClick={() => openEditModal(campaign)}
                     className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
                   >
                     <Edit2 className="w-4 h-4 text-gray-400" />
@@ -149,6 +268,16 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                 </div>
               </div>
 
+              {campaign.image_url && (
+                <div className="mb-4">
+                  <img
+                    src={campaign.image_url}
+                    alt={campaign.campaign_name}
+                    className="w-full h-40 object-cover rounded-lg"
+                  />
+                </div>
+              )}
+
               <div className="space-y-3">
                 <div className="flex items-center text-sm text-gray-400">
                   <DollarSign className="w-4 h-4 mr-2 text-[#2663eb]" />
@@ -158,8 +287,7 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                 <div className="flex items-center text-sm text-gray-400">
                   <Calendar className="w-4 h-4 mr-2 text-[#2663eb]" />
                   <span>
-                    {new Date(campaign.start_date).toLocaleDateString()} -{' '}
-                    {new Date(campaign.end_date).toLocaleDateString()}
+                    {campaign.start_date} - {campaign.end_date}
                   </span>
                 </div>
 
@@ -226,8 +354,7 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                       ${campaign.budget.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-gray-300 text-sm">
-                      {new Date(campaign.start_date).toLocaleDateString()} -{' '}
-                      {new Date(campaign.end_date).toLocaleDateString()}
+                      {campaign.start_date} - {campaign.end_date}
                     </td>
                     <td className="px-6 py-4 text-gray-300 text-sm max-w-xs truncate">
                       {campaign.audience}
@@ -235,7 +362,7 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end space-x-2">
                         <button
-                          onClick={() => alert('Edit functionality coming soon')}
+                          onClick={() => openEditModal(campaign)}
                           className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
                         >
                           <Edit2 className="w-4 h-4 text-gray-400" />
@@ -252,6 +379,187 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingCampaign && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-xl border border-gray-800 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white">Edit Campaign</h2>
+              <button
+                onClick={closeEditModal}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Campaign Name
+                </label>
+                <input
+                  type="text"
+                  name="campaign_name"
+                  value={editForm.campaign_name || ''}
+                  onChange={handleEditChange}
+                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2663eb]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Google Ads Text
+                </label>
+                <textarea
+                  name="google_ads_text"
+                  value={editForm.google_ads_text || ''}
+                  onChange={handleEditChange}
+                  rows={3}
+                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2663eb] resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Meta Ads Caption
+                </label>
+                <textarea
+                  name="meta_ads_caption"
+                  value={editForm.meta_ads_caption || ''}
+                  onChange={handleEditChange}
+                  rows={3}
+                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2663eb] resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Budget ($)
+                </label>
+                <input
+                  type="number"
+                  name="budget"
+                  value={editForm.budget || ''}
+                  onChange={handleEditChange}
+                  step="0.01"
+                  min="0"
+                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2663eb]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    name="start_date"
+                    value={editForm.start_date || ''}
+                    onChange={handleEditChange}
+                    className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2663eb]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    name="end_date"
+                    value={editForm.end_date || ''}
+                    onChange={handleEditChange}
+                    className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2663eb]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Target Audience
+                </label>
+                <input
+                  type="text"
+                  name="audience"
+                  value={editForm.audience || ''}
+                  onChange={handleEditChange}
+                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2663eb]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Status
+                </label>
+                <select
+                  name="status"
+                  value={editForm.status || 'active'}
+                  onChange={handleEditChange}
+                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2663eb]"
+                >
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Campaign Image
+                </label>
+                {editImagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={editImagePreview}
+                      alt="Preview"
+                      className="w-full h-48 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeEditImage}
+                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-[#2663eb] transition-colors">
+                    <Upload className="w-12 h-12 text-gray-500 mb-2" />
+                    <span className="text-sm text-gray-400">Click to upload image</span>
+                    <span className="text-xs text-gray-500 mt-1">PNG, JPG up to 10MB</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleEditImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4">
+                <button
+                  onClick={closeEditModal}
+                  className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={updateCampaign}
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-[#2663eb] hover:bg-[#1d4fbf] text-white rounded-lg transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-5 h-5" />
+                  <span>{isSubmitting ? 'Saving...' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

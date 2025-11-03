@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save } from 'lucide-react';
+import { Save, Upload, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface CampaignFormProps {
@@ -19,6 +19,8 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -52,6 +54,48 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview('');
+  };
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!imageFile) return null;
+
+    try {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('campaign-images')
+        .upload(filePath, imageFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('campaign-images')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -62,6 +106,9 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
     setIsSubmitting(true);
 
     try {
+      // Upload image if present
+      const imageUrl = await uploadImage();
+
       const { error } = await supabase.from('campaigns').insert([
         {
           campaign_name: formData.campaign_name,
@@ -72,6 +119,7 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
           end_date: formData.end_date,
           audience: formData.audience,
           status: 'active',
+          image_url: imageUrl,
         },
       ]);
 
@@ -86,6 +134,8 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
         end_date: '',
         audience: '',
       });
+      setImageFile(null);
+      setImagePreview('');
 
       onSuccess();
     } catch (error) {
@@ -231,6 +281,40 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
             )}
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Campaign Image (Optional)
+            </label>
+            {imagePreview ? (
+              <div className="relative">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-full h-48 object-cover rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-[#2663eb] transition-colors">
+                <Upload className="w-12 h-12 text-gray-500 mb-2" />
+                <span className="text-sm text-gray-400">Click to upload image</span>
+                <span className="text-xs text-gray-500 mt-1">PNG, JPG up to 10MB</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
+
           {errors.submit && (
             <p className="text-red-400 text-sm">{errors.submit}</p>
           )}
@@ -282,9 +366,17 @@ export default function CampaignForm({ onSuccess }: CampaignFormProps) {
             <p className="text-sm text-gray-800 leading-relaxed mb-4">
               {formData.meta_ads_caption || 'Your Meta Ads caption will appear here...'}
             </p>
-            <div className="bg-gray-200 rounded-lg h-48 flex items-center justify-center">
-              <span className="text-gray-500 text-sm">Ad Image</span>
-            </div>
+            {imagePreview ? (
+              <img
+                src={imagePreview}
+                alt="Campaign preview"
+                className="w-full h-48 object-cover rounded-lg"
+              />
+            ) : (
+              <div className="bg-gray-200 rounded-lg h-48 flex items-center justify-center">
+                <span className="text-gray-500 text-sm">Ad Image</span>
+              </div>
+            )}
           </div>
 
           {formData.budget && (

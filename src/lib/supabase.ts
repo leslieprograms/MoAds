@@ -45,6 +45,7 @@ export interface Campaign {
   end_date: string;
   audience: string;
   status: string;
+  image_url?: string;
   created_at: string;
   updated_at: string;
 }
