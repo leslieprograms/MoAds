@@ -212,6 +212,16 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                 </div>
               </div>
 
+              {campaign.image_url && (
+                <div className="mb-4">
+                  <img
+                    src={campaign.image_url}
+                    alt={campaign.campaign_name}
+                    className="w-full h-40 object-cover rounded-lg"
+                  />
+                </div>
+              )}
+
               <div className="space-y-3">
                 <div className="flex items-center text-sm text-gray-400">
                   <DollarSign className="w-4 h-4 mr-2 text-[#2663eb]" />
