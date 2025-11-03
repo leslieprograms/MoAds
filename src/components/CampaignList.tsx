@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit2, Trash2, Grid, List, Calendar, DollarSign, Users, X, Save } from 'lucide-react';
+import { Edit2, Trash2, Grid, List, Calendar, DollarSign, Users, X, Save, Upload } from 'lucide-react';
 import { supabase, Campaign } from '../lib/supabase';
 
 interface CampaignListProps {
@@ -14,6 +14,8 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [editForm, setEditForm] = useState<Partial<Campaign>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string>('');
 
   useEffect(() => {
     fetchCampaigns();
@@ -60,12 +62,17 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
       end_date: campaign.end_date,
       audience: campaign.audience,
       status: campaign.status,
+      image_url: campaign.image_url,
     });
+    setEditImageFile(null);
+    setEditImagePreview(campaign.image_url || '');
   };
 
   const closeEditModal = () => {
     setEditingCampaign(null);
     setEditForm({});
+    setEditImageFile(null);
+    setEditImagePreview('');
   };
 
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -73,11 +80,59 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
     setEditForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeEditImage = () => {
+    setEditImageFile(null);
+    setEditImagePreview('');
+    setEditForm((prev) => ({ ...prev, image_url: '' }));
+  };
+
+  const uploadEditImage = async (): Promise<string | null | undefined> => {
+    if (editImageFile) {
+      try {
+        const fileExt = editImageFile.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('campaign-images')
+          .upload(filePath, editImageFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('campaign-images')
+          .getPublicUrl(filePath);
+
+        return publicUrl;
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        return null;
+      }
+    }
+    // Return undefined if no new image, keep existing
+    return editForm.image_url;
+  };
+
   const updateCampaign = async () => {
     if (!editingCampaign) return;
 
     setIsSubmitting(true);
     try {
+      // Upload new image if selected
+      const imageUrl = await uploadEditImage();
+
       const updatedData = {
         campaign_name: editForm.campaign_name!,
         google_ads_text: editForm.google_ads_text!,
@@ -87,6 +142,7 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
         end_date: editForm.end_date!,
         audience: editForm.audience!,
         status: editForm.status!,
+        image_url: imageUrl,
         updated_at: new Date().toISOString(),
       };
 
@@ -451,6 +507,40 @@ export default function CampaignList({ refreshTrigger }: CampaignListProps) {
                   <option value="paused">Paused</option>
                   <option value="completed">Completed</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Campaign Image
+                </label>
+                {editImagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={editImagePreview}
+                      alt="Preview"
+                      className="w-full h-48 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeEditImage}
+                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-[#2663eb] transition-colors">
+                    <Upload className="w-12 h-12 text-gray-500 mb-2" />
+                    <span className="text-sm text-gray-400">Click to upload image</span>
+                    <span className="text-xs text-gray-500 mt-1">PNG, JPG up to 10MB</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleEditImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
 
               <div className="flex items-center justify-end space-x-3 pt-4">
